@@ -1650,48 +1650,130 @@ export default function TournamentScreen({
           </div>
         </div>
 
-        {/* Trophy Modal */}
+        {/* Trophy Modal — Season End Screen */}
         <AnimatePresence>
           {(showTrophy || gameState.tournamentPhase === "complete") && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center"
-              style={{ background: "rgba(7,11,20,0.95)" }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ background: "rgba(7,11,20,0.97)" }}
               data-ocid="tournament.trophy.modal"
             >
               <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", duration: 0.6 }}
-                className="text-center p-12 rounded-3xl max-w-md w-full mx-4"
+                initial={{ scale: 0.5, opacity: 0, y: 40 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: "spring", duration: 0.7, bounce: 0.35 }}
+                className="text-center rounded-3xl max-w-lg w-full mx-auto overflow-hidden"
                 style={{
-                  background: "rgba(15,34,51,0.9)",
-                  border: "1px solid rgba(255,154,61,0.4)",
+                  background: "rgba(10,22,38,0.98)",
+                  border: "1px solid rgba(255,154,61,0.5)",
+                  boxShadow:
+                    "0 0 80px rgba(255,154,61,0.18), 0 0 160px rgba(255,106,42,0.08)",
                 }}
               >
-                <div className="text-8xl mb-4 animate-bounce">🏆</div>
-                <h2
-                  className="text-3xl font-black uppercase mb-2"
+                {/* Season badge header */}
+                <div
+                  className="px-8 pt-8 pb-4"
                   style={{
-                    color: "#FF9A3D",
-                    fontFamily: "'BricolageGrotesque', sans-serif",
+                    background:
+                      "linear-gradient(180deg, rgba(255,154,61,0.12) 0%, transparent 100%)",
+                    borderBottom: "1px solid rgba(255,154,61,0.15)",
                   }}
                 >
-                  IPL 2026 CHAMPIONS!
-                </h2>
-                <p className="text-lg mb-2" style={{ color: "#E9EEF5" }}>
-                  {gameState.teams.find((t) => t.id === gameState.trophy)
-                    ?.name ?? "Your team"}{" "}
-                  wins the IPL 2026 Season {gameState.season}!
-                </p>
-                {gameState.trophy === userTeam.id && (
-                  <p className="text-sm mb-4" style={{ color: "#35E06F" }}>
-                    Congratulations! You are the IPL 2026 Champions! 🎉
+                  <div
+                    className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-4"
+                    style={{
+                      background: "rgba(255,154,61,0.12)",
+                      border: "1px solid rgba(255,154,61,0.3)",
+                    }}
+                  >
+                    <span
+                      className="text-xs font-bold uppercase tracking-widest"
+                      style={{ color: "#FF9A3D" }}
+                    >
+                      IPL 2026 — Season {gameState.season} Complete
+                    </span>
+                  </div>
+
+                  <div className="text-7xl mb-3 animate-bounce">🏆</div>
+
+                  <h2
+                    className="text-3xl font-black uppercase mb-1"
+                    style={{
+                      color: "#FF9A3D",
+                      fontFamily: "'BricolageGrotesque', sans-serif",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    {gameState.season === 5
+                      ? "All 5 Seasons Complete!"
+                      : "Champions!"}
+                  </h2>
+
+                  <p
+                    className="text-base font-semibold mb-1"
+                    style={{ color: "#E9EEF5" }}
+                  >
+                    {gameState.teams.find((t) => t.id === gameState.trophy)
+                      ?.name ?? "Champions"}{" "}
+                    <span style={{ color: "#A7B3C2" }}>
+                      win the IPL 2026 Season {gameState.season} title!
+                    </span>
                   </p>
-                )}
-                <div className="flex gap-3 justify-center mb-4">
+
+                  {gameState.trophy === userTeam.id && (
+                    <p
+                      className="text-sm font-bold mt-1"
+                      style={{ color: "#35E06F" }}
+                    >
+                      🎉 Congratulations! You are the Season {gameState.season}{" "}
+                      IPL Champions!
+                    </p>
+                  )}
+
+                  {gameState.season === 5 && (
+                    <div
+                      className="mt-3 px-4 py-3 rounded-xl text-sm font-semibold"
+                      style={{
+                        background: "rgba(255,154,61,0.1)",
+                        border: "1px solid rgba(255,154,61,0.3)",
+                        color: "#FF9A3D",
+                      }}
+                    >
+                      🏆 You've completed all 5 seasons of IPL 2026! What a
+                      legendary journey!
+                    </div>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="px-8 py-6 space-y-3">
+                  {/* PRIMARY: Continue to next season — only shown if season < 5 */}
+                  {gameState.season < 5 && (
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setShowTrophy(false);
+                        onNavigate("retention");
+                      }}
+                      data-ocid="tournament.trophy.season_next.button"
+                      className="w-full px-6 py-4 rounded-xl font-black uppercase tracking-wider text-base"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #22B8C7 0%, #35E06F 100%)",
+                        color: "#040D18",
+                        boxShadow: "0 4px 24px rgba(53,224,111,0.35)",
+                      }}
+                    >
+                      🏏 Continue to Season {gameState.season + 1}
+                    </motion.button>
+                  )}
+
+                  {/* SECONDARY: View Leaderboard */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1699,61 +1781,17 @@ export default function TournamentScreen({
                       onNavigate("leaderboard");
                     }}
                     data-ocid="tournament.trophy.view_leaderboard.button"
-                    className="px-6 py-3 rounded-lg font-bold uppercase tracking-wider"
+                    className="w-full px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-sm"
                     style={{
-                      background: "linear-gradient(135deg, #FF6A2A, #FF9A3D)",
-                      color: "#fff",
+                      background: "rgba(255,154,61,0.1)",
+                      border: "1px solid rgba(255,154,61,0.35)",
+                      color: "#FF9A3D",
                     }}
                   >
-                    View Leaderboard
+                    📊 View Season {gameState.season} Leaderboard
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowTrophy(false)}
-                    data-ocid="tournament.trophy.close_button"
-                    className="px-6 py-3 rounded-lg font-bold uppercase tracking-wider border"
-                    style={{
-                      borderColor: "rgba(167,179,194,0.3)",
-                      color: "#A7B3C2",
-                    }}
-                  >
-                    Close
-                  </button>
-                </div>
-                <div
-                  className="pt-4 space-y-3"
-                  style={{ borderTop: "1px solid rgba(30,58,74,0.5)" }}
-                >
-                  <p
-                    className="text-xs font-semibold uppercase tracking-widest"
-                    style={{ color: "#A7B3C2" }}
-                  >
-                    What's next?
-                  </p>
-                  {gameState.season < 5 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowTrophy(false);
-                        onNavigate("retention");
-                      }}
-                      data-ocid="tournament.trophy.season_next.button"
-                      className="w-full px-6 py-3 rounded-lg font-bold uppercase tracking-wider"
-                      style={{
-                        background: "linear-gradient(135deg, #22B8C7, #35E06F)",
-                        color: "#070B14",
-                      }}
-                    >
-                      🏏 Continue to Season {gameState.season + 1}
-                    </button>
-                  ) : (
-                    <p
-                      className="text-xs text-center py-1"
-                      style={{ color: "#FF9A3D" }}
-                    >
-                      🏆 You've completed all 5 seasons! Legend!
-                    </p>
-                  )}
+
+                  {/* TERTIARY: Start New Game — always shown */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1761,15 +1799,21 @@ export default function TournamentScreen({
                       if (onReset) onReset();
                     }}
                     data-ocid="tournament.trophy.new_game.button"
-                    className="w-full px-6 py-3 rounded-lg font-bold uppercase tracking-wider border"
+                    className="w-full px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-sm border"
                     style={{
-                      background: "rgba(229,57,53,0.08)",
-                      borderColor: "rgba(229,57,53,0.4)",
-                      color: "#E53935",
+                      background: "rgba(229,57,53,0.07)",
+                      borderColor: "rgba(229,57,53,0.35)",
+                      color: "#E57373",
                     }}
                   >
                     🔄 Start New Game
                   </button>
+
+                  <p className="text-xs pt-1" style={{ color: "#4A5568" }}>
+                    {gameState.season < 5
+                      ? `Season ${gameState.season + 1} begins with the retention auction — keep up to 5 players.`
+                      : "Start fresh with a new franchise from Season 1."}
+                  </p>
                 </div>
               </motion.div>
             </motion.div>
