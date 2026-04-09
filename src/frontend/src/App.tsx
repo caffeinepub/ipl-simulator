@@ -6,20 +6,20 @@ import {
   INITIAL_TEAMS,
   PLAYERS,
   createAuctionQueue,
-  getPlayer,
   shuffleArray,
 } from "./data/players";
-import { aiPickPlayingXI, generateLeagueFixtures } from "./engine/gameEngine";
+import { aiPickPlayingXI } from "./engine/gameEngine";
 import AuctionScreen from "./screens/AuctionScreen";
 import FranchiseSelectScreen from "./screens/FranchiseSelectScreen";
 import HomeScreen from "./screens/HomeScreen";
 import LeaderboardScreen from "./screens/LeaderboardScreen";
 import MatchScreen from "./screens/MatchScreen";
+import RetentionScreen from "./screens/RetentionScreen";
 import TeamScreen from "./screens/TeamScreen";
 import TournamentScreen from "./screens/TournamentScreen";
 import type { GameState, TeamData } from "./types/game";
 
-const STORAGE_KEY = "ipl-simulator-state";
+const STORAGE_KEY = "ipl-simulator-state-v4";
 
 function createInitialGameState(): GameState {
   return {
@@ -35,6 +35,7 @@ function createInitialGameState(): GameState {
     tournamentPhase: "group",
     playerStats: [],
     retainedPlayers: [],
+    retentionEntries: [],
     rtmCards: [],
     trophy: undefined,
   };
@@ -45,9 +46,14 @@ function loadGameState(): GameState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
-      // Validate it has a valid phase
       if (parsed?.teams && parsed.phase) {
-        return parsed;
+        // Ensure matchesPlayed exists on all teams (migration)
+        const teams = parsed.teams.map((t: TeamData) => ({
+          ...t,
+          matchesPlayed: t.matchesPlayed ?? 0,
+          homeVenue: t.homeVenue ?? "",
+        }));
+        return { ...parsed, teams };
       }
     }
   } catch {
@@ -65,30 +71,140 @@ function saveGameState(state: GameState): void {
 }
 
 /**
- * Auto-simulate a full IPL auction.
- * Distributes PLAYERS across all 8 teams fairly,
- * weighting by team budget (all equal = random fair split).
+ * Auto-simulate Quick Play auction for 10 teams × 18 players each.
+ * Guarantees iconic franchise players are assigned first, then fills
+ * each team with balanced role-based composition:
+ *   3 WicketKeepers + 5 Batsmen + 4 AllRounders + 5 Bowlers (2 Spin + 3 Pace)
+ *   = 17 players, with 1 flex slot filled from best available.
  */
 function simulateQuickPlayAuction(teams: TeamData[]): TeamData[] {
-  const allPlayerIds = shuffleArray(PLAYERS.map((p) => p.id));
-  const updated = teams.map((t) => ({
-    ...t,
-    squad: [] as number[],
-    budget: 100,
-  }));
-  let teamIdx = 0;
-  for (const playerId of allPlayerIds) {
-    // Round-robin distribution, skip teams that hit 15
-    let tries = 0;
-    while (updated[teamIdx].squad.length >= 15 && tries < updated.length) {
-      teamIdx = (teamIdx + 1) % updated.length;
-      tries++;
+  // Iconic player guarantees: { teamId -> [playerIds] }
+  // Team IDs match INITIAL_TEAMS ordering (0-indexed array position as id)
+  const iconicAssignments: Record<number, number[]> = {
+    0: [2, 3], // MI: Rohit Sharma, Jasprit Bumrah
+    1: [5, 4, 192], // CSK: MS Dhoni, Ravindra Jadeja, Dewald Brevis
+    2: [10], // DC: Rishabh Pant
+    3: [60], // KKR: Sunil Narine
+    4: [16], // RR: Ravichandran Ashwin
+    5: [8], // PBKS: Shreyas Iyer
+    6: [51], // SRH: David Warner
+    7: [1], // RCB: Virat Kohli
+    8: [31], // GT: Shubman Gill
+    9: [7], // LSG: KL Rahul
+  };
+
+  const iconicPlayerIds = new Set(Object.values(iconicAssignments).flat());
+
+  // Target squad composition per team (total 17, +1 flex = 18)
+  const TARGET_WK = 3;
+  const TARGET_BAT = 5;
+  const TARGET_AR = 4;
+  const TARGET_BOWL_SPIN = 2;
+  const TARGET_BOWL_PACE = 3; // Fast or Medium
+
+  // Build shuffled role pools (excluding iconics)
+  const availableWK = shuffleArray(
+    PLAYERS.filter(
+      (p) => p.role === "WicketKeeper" && !iconicPlayerIds.has(p.id),
+    ),
+  );
+  const availableBAT = shuffleArray(
+    PLAYERS.filter((p) => p.role === "Batsman" && !iconicPlayerIds.has(p.id)),
+  );
+  const availableAR = shuffleArray(
+    PLAYERS.filter(
+      (p) => p.role === "AllRounder" && !iconicPlayerIds.has(p.id),
+    ),
+  );
+  const availableSpin = shuffleArray(
+    PLAYERS.filter(
+      (p) =>
+        p.role === "Bowler" &&
+        p.bowlingStyle === "Spin" &&
+        !iconicPlayerIds.has(p.id),
+    ),
+  );
+  const availablePace = shuffleArray(
+    PLAYERS.filter(
+      (p) =>
+        p.role === "Bowler" &&
+        (p.bowlingStyle === "Fast" || p.bowlingStyle === "Medium") &&
+        !iconicPlayerIds.has(p.id),
+    ),
+  );
+
+  let wkIdx = 0;
+  let batIdx = 0;
+  let arIdx = 0;
+  let spinIdx = 0;
+  let paceIdx = 0;
+
+  const updated = teams.map((t) => {
+    const iconic = iconicAssignments[t.id] ?? [];
+    const squad: number[] = [...iconic];
+
+    const iconicPlayers = iconic
+      .map((id) => PLAYERS.find((p) => p.id === id)!)
+      .filter(Boolean);
+
+    let wkCount = iconicPlayers.filter((p) => p.role === "WicketKeeper").length;
+    let batCount = iconicPlayers.filter((p) => p.role === "Batsman").length;
+    let arCount = iconicPlayers.filter((p) => p.role === "AllRounder").length;
+    let spinCount = iconicPlayers.filter(
+      (p) => p.role === "Bowler" && p.bowlingStyle === "Spin",
+    ).length;
+    let paceCount = iconicPlayers.filter(
+      (p) =>
+        p.role === "Bowler" &&
+        (p.bowlingStyle === "Fast" || p.bowlingStyle === "Medium"),
+    ).length;
+
+    // Fill WK slots
+    while (wkCount < TARGET_WK && wkIdx < availableWK.length) {
+      squad.push(availableWK[wkIdx].id);
+      wkIdx++;
+      wkCount++;
     }
-    if (tries < updated.length) {
-      updated[teamIdx].squad.push(playerId);
-      teamIdx = (teamIdx + 1) % updated.length;
+    // Fill Batsman slots
+    while (batCount < TARGET_BAT && batIdx < availableBAT.length) {
+      squad.push(availableBAT[batIdx].id);
+      batIdx++;
+      batCount++;
+    }
+    // Fill AllRounder slots
+    while (arCount < TARGET_AR && arIdx < availableAR.length) {
+      squad.push(availableAR[arIdx].id);
+      arIdx++;
+      arCount++;
+    }
+    // Fill Spin Bowler slots
+    while (spinCount < TARGET_BOWL_SPIN && spinIdx < availableSpin.length) {
+      squad.push(availableSpin[spinIdx].id);
+      spinIdx++;
+      spinCount++;
+    }
+    // Fill Pace Bowler slots
+    while (paceCount < TARGET_BOWL_PACE && paceIdx < availablePace.length) {
+      squad.push(availablePace[paceIdx].id);
+      paceIdx++;
+      paceCount++;
+    }
+
+    return { ...t, squad, budget: 100 };
+  });
+
+  // Fill any remaining gaps (up to 18) with overflow from all remaining players
+  const allUsed = new Set(updated.flatMap((t) => t.squad));
+  const overflow = shuffleArray(
+    PLAYERS.filter((p) => !allUsed.has(p.id)).map((p) => p.id),
+  );
+  let overflowIdx = 0;
+  for (const team of updated) {
+    while (team.squad.length < 18 && overflowIdx < overflow.length) {
+      team.squad.push(overflow[overflowIdx++]);
     }
   }
+
   // Auto-assign playingXI for all teams
   return updated.map((t) => ({
     ...t,
@@ -130,21 +246,20 @@ export default function App() {
   const handleFranchiseSelect = useCallback(
     (franchiseId: number, mode: "auction" | "quickplay") => {
       setGameState((prev) => {
-        // Mark chosen team as user's
+        // Mark chosen team as user's -- use id comparison, never rely on id===0
         const teamsWithUser = prev.teams.map((t) => ({
           ...t,
           isUserTeam: t.id === franchiseId,
         }));
 
         if (mode === "quickplay") {
-          // Auto-simulate the auction, then send user to team setup
           const teamsAfterAuction = simulateQuickPlayAuction(teamsWithUser);
-          // Give user team a full squad but clear playingXI so they can set it
+          // Clear user team's playingXI so they can pick manually
           const finalTeams = teamsAfterAuction.map((t) =>
             t.isUserTeam ? { ...t, playingXI: [] } : t,
           );
           toast.success(
-            "Auction simulated! Now set your Playing XI to start the tournament.",
+            "Auction simulated! Each team has 18 players. Now set your Playing XI.",
           );
           return {
             ...prev,
@@ -266,6 +381,7 @@ export default function App() {
                 gameState={gameState}
                 updateGameState={updateGameState}
                 onNavigate={navigateTo}
+                onReset={resetGame}
               />
             </motion.div>
           )}
@@ -279,6 +395,21 @@ export default function App() {
             >
               <LeaderboardScreen
                 gameState={gameState}
+                onNavigate={navigateTo}
+              />
+            </motion.div>
+          )}
+          {gameState.phase === "retention" && (
+            <motion.div
+              key="retention"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <RetentionScreen
+                gameState={gameState}
+                updateGameState={updateGameState}
                 onNavigate={navigateTo}
               />
             </motion.div>
@@ -365,7 +496,7 @@ function NavBar({
                 lineHeight: 1,
               }}
             >
-              IPL CRICKET
+              IPL 2026
             </div>
             <div
               className="text-xs tracking-wider"
@@ -388,12 +519,14 @@ function NavBar({
               style={{
                 color:
                   phase === item.key ||
-                  (item.key === "franchise" && phase === "auction")
+                  (item.key === "franchise" && phase === "auction") ||
+                  (item.key === "franchise" && phase === "retention")
                     ? "#35E06F"
                     : "#A7B3C2",
                 borderBottom:
                   phase === item.key ||
-                  (item.key === "franchise" && phase === "auction")
+                  (item.key === "franchise" && phase === "auction") ||
+                  (item.key === "franchise" && phase === "retention")
                     ? "2px solid #35E06F"
                     : "2px solid transparent",
               }}

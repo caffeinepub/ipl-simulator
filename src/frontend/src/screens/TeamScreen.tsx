@@ -46,6 +46,21 @@ export default function TeamScreen({
         toast.error("Playing XI is full! Remove a player first.");
         return prev;
       }
+      // Overseas limit: max 4 in Playing XI
+      const player = getPlayer(playerId);
+      const isOverseas = player && player.country !== "India";
+      if (isOverseas) {
+        const currentOverseasCount = prev.filter((id) => {
+          const p = getPlayer(id);
+          return p && p.country !== "India";
+        }).length;
+        if (currentOverseasCount >= 4) {
+          toast.error(
+            "IPL rules: Maximum 4 overseas players allowed in Playing XI!",
+          );
+          return prev;
+        }
+      }
       return [...prev, playerId];
     });
   };
@@ -69,6 +84,7 @@ export default function TeamScreen({
     const bowlers = selectedPlayers.filter(
       (p) => p.role === "Bowler" || p.role === "AllRounder",
     );
+    const overseas = selectedPlayers.filter((p) => p.country !== "India");
 
     if (playingXI.length < 11) {
       toast.error(`Select ${11 - playingXI.length} more players`);
@@ -84,6 +100,12 @@ export default function TeamScreen({
     }
     if (bowlers.length < 3) {
       toast.error("Need at least 3 bowlers/all-rounders");
+      return;
+    }
+    if (overseas.length > 4) {
+      toast.error(
+        "IPL rules: Maximum 4 overseas players allowed in Playing XI!",
+      );
       return;
     }
 
@@ -111,6 +133,12 @@ export default function TeamScreen({
       return p?.role === role;
     }).length;
 
+  const getOverseasCount = () =>
+    playingXI.filter((id) => {
+      const p = getPlayer(id);
+      return p && p.country !== "India";
+    }).length;
+
   return (
     <div className="min-h-screen p-4 md:p-6" style={{ background: "#070B14" }}>
       <div className="max-w-6xl mx-auto">
@@ -132,7 +160,7 @@ export default function TeamScreen({
 
         {/* Validation bar */}
         <div
-          className="panel-glass rounded-xl p-4 mb-6 grid grid-cols-2 md:grid-cols-4 gap-3"
+          className="panel-glass rounded-xl p-4 mb-6 grid grid-cols-2 md:grid-cols-5 gap-3"
           data-ocid="team.validation.panel"
         >
           {[
@@ -140,25 +168,36 @@ export default function TeamScreen({
               label: "WK",
               count: getRoleCount("WicketKeeper"),
               min: 1,
+              max: 99,
               color: "#FF7A2F",
             },
             {
               label: "Batsmen",
               count: getRoleCount("Batsman"),
               min: 3,
+              max: 99,
               color: "#35E06F",
             },
             {
               label: "All-Rounders",
               count: getRoleCount("AllRounder"),
               min: 1,
+              max: 99,
               color: "#FF9A3D",
             },
             {
               label: "Bowlers",
               count: getRoleCount("Bowler"),
               min: 3,
+              max: 99,
               color: "#22B8C7",
+            },
+            {
+              label: "Overseas",
+              count: getOverseasCount(),
+              min: 0,
+              max: 4,
+              color: "#A7B3C2",
             },
           ].map((item) => (
             <div key={item.label} className="text-center">
@@ -168,14 +207,19 @@ export default function TeamScreen({
               <div
                 className="text-xl font-black"
                 style={{
-                  color: item.count >= item.min ? item.color : "#E53935",
+                  color:
+                    item.count > item.max
+                      ? "#E53935"
+                      : item.count >= item.min
+                        ? item.color
+                        : "#E53935",
                   fontFamily: "'BricolageGrotesque', sans-serif",
                 }}
               >
                 {item.count}
               </div>
               <div className="text-xs" style={{ color: "#A7B3C2" }}>
-                min {item.min}
+                {item.max < 99 ? `max ${item.max}` : `min ${item.min}`}
               </div>
             </div>
           ))}

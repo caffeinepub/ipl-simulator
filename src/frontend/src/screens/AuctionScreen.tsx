@@ -1,6 +1,5 @@
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Gavel, Timer, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -18,6 +17,39 @@ interface Props {
 const TIMER_SECONDS = 15;
 const BID_INCREMENTS = [0.25, 0.5, 1, 2];
 
+// Human-readable labels for auction set names
+const SET_LABELS: Record<string, string> = {
+  "WK-Set-1": "Set 1 — Premium Wicket Keepers",
+  "WK-Set-2": "Set 2 — Wicket Keepers",
+  "WK-Set-3": "Set 3 — Wicket Keepers",
+  "WK-Set-4": "Set 4 — Wicket Keepers",
+  "Bat-Set-1": "Set 1 — Elite Batsmen",
+  "Bat-Set-2": "Set 2 — Batsmen",
+  "Bat-Set-3": "Set 3 — Batsmen",
+  "Bowl-Set-1": "Set 1 — Elite Bowlers",
+  "Bowl-Set-2": "Set 2 — Bowlers",
+  "Bowl-Set-3": "Set 3 — Bowlers",
+  "AR-Set-1": "Set 1 — Elite All-Rounders",
+  "AR-Set-2": "Set 2 — All-Rounders",
+  "AR-Set-3": "Set 3 — All-Rounders",
+};
+
+const SET_COLORS: Record<string, string> = {
+  "WK-Set-1": "#FF7A2F",
+  "WK-Set-2": "#FF9A3D",
+  "WK-Set-3": "#FFB460",
+  "WK-Set-4": "#FFC880",
+  "Bat-Set-1": "#35E06F",
+  "Bat-Set-2": "#58E887",
+  "Bat-Set-3": "#80F0A0",
+  "Bowl-Set-1": "#22B8C7",
+  "Bowl-Set-2": "#45C8D5",
+  "Bowl-Set-3": "#70D8E2",
+  "AR-Set-1": "#C77DFF",
+  "AR-Set-2": "#D49EFF",
+  "AR-Set-3": "#E2BFFF",
+};
+
 export default function AuctionScreen({
   gameState,
   updateGameState,
@@ -34,6 +66,18 @@ export default function AuctionScreen({
   const currentPlayer = gameState.currentAuctionPlayer
     ? getPlayer(gameState.currentAuctionPlayer.playerId)
     : null;
+
+  // Current auction set
+  const currentSet = currentPlayer?.auctionSet ?? "";
+  const setLabel = SET_LABELS[currentSet] ?? currentSet;
+  const setColor = SET_COLORS[currentSet] ?? "#FF9A3D";
+  const setCategory = currentSet.startsWith("WK")
+    ? "WICKET KEEPERS"
+    : currentSet.startsWith("Bat")
+      ? "BATSMEN"
+      : currentSet.startsWith("Bowl")
+        ? "BOWLERS"
+        : "ALL-ROUNDERS";
 
   const addToBidFeed = useCallback((text: string, color = "#A7B3C2") => {
     setBidFeed((prev) => [{ text, color }, ...prev].slice(0, 5));
@@ -94,7 +138,6 @@ export default function AuctionScreen({
       const { playerId, currentBid, currentBidderTeamId } =
         prev.currentAuctionPlayer;
 
-      // FIX: use explicit undefined check -- team id 0 is falsy but valid
       if (currentBidderTeamId === undefined) {
         addToBidFeed("Player UNSOLD - back to pool", "#E53935");
         return {
@@ -134,7 +177,6 @@ export default function AuctionScreen({
         );
       }
 
-      // Try to sync with backend
       if (actor && isUserBuyer) {
         actor
           .placeBid(BigInt(0), BigInt(Math.round(currentBid)))
@@ -338,7 +380,7 @@ export default function AuctionScreen({
         currentAuctionPlayer: {
           ...prev.currentAuctionPlayer,
           currentBid: bid,
-          currentBidderTeamId: userTeam.id, // use actual user team id
+          currentBidderTeamId: userTeam.id,
           timerSeconds: TIMER_SECONDS,
           bids: [
             ...prev.currentAuctionPlayer.bids,
@@ -435,9 +477,31 @@ export default function AuctionScreen({
               fontFamily: "'BricolageGrotesque', sans-serif",
             }}
           >
-            <span className="text-gradient-orange">LIVE AUCTION</span>
+            <span className="text-gradient-orange">IPL 2026 LIVE AUCTION</span>
           </h1>
-          <p className="text-sm" style={{ color: "#A7B3C2" }}>
+
+          {/* Current Auction Set Banner */}
+          {currentSet && (
+            <div
+              className="mt-3 px-4 py-2.5 rounded-xl inline-flex items-center gap-3"
+              style={{
+                background: `${setColor}15`,
+                border: `1px solid ${setColor}44`,
+              }}
+            >
+              <span
+                className="text-xs font-black uppercase tracking-widest"
+                style={{ color: setColor }}
+              >
+                {setCategory}
+              </span>
+              <span className="text-xs" style={{ color: "#E9EEF5" }}>
+                {setLabel}
+              </span>
+            </div>
+          )}
+
+          <p className="text-sm mt-2" style={{ color: "#A7B3C2" }}>
             Player {gameState.auctionIndex + 1} of{" "}
             {gameState.auctionQueue.length} • Bidding as:{" "}
             <span style={{ color: "#35E06F" }}>{userTeam.name}</span> • Budget:{" "}
@@ -458,6 +522,20 @@ export default function AuctionScreen({
                 className="panel-glow rounded-2xl p-6 text-center"
                 data-ocid="auction.player.card"
               >
+                {/* Auction set tag */}
+                {currentSet && (
+                  <div
+                    className="text-xs font-bold uppercase tracking-widest mb-3 px-3 py-1 rounded-full inline-block"
+                    style={{
+                      background: `${setColor}22`,
+                      color: setColor,
+                      border: `1px solid ${setColor}44`,
+                    }}
+                  >
+                    {currentSet}
+                  </div>
+                )}
+
                 <div
                   className="w-24 h-24 rounded-full mx-auto mb-4 flex items-center justify-center text-2xl font-black"
                   style={{

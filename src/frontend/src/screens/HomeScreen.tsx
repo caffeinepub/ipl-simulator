@@ -130,7 +130,7 @@ export default function HomeScreen({
               className="text-xs font-bold tracking-widest uppercase"
               style={{ color: "#22B8C7" }}
             >
-              IPL 2024 • Season {gameState.season}
+              IPL 2026 • Season {gameState.season}
             </span>
           </div>
 
@@ -394,7 +394,7 @@ export default function HomeScreen({
               fontFamily: "'BricolageGrotesque', sans-serif",
             }}
           >
-            IPL 2024 Bracket
+            IPL 2026 Bracket
           </h2>
           <div className="space-y-2">
             {["Qualifier 1", "Eliminator", "Qualifier 2", "Final"].map(

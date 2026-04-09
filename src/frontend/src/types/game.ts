@@ -19,6 +19,7 @@ export interface Player {
   bowlingStyle: BowlingStyle;
   teamColor: string;
   jerseyNumber: number;
+  auctionSet: string; // e.g. "WK-Set-1", "Bat-Set-1", "Bowl-Set-2", "AR-Set-3"
 }
 
 export interface TeamData {
@@ -36,6 +37,8 @@ export interface TeamData {
   losses: number;
   points: number;
   nrr: number;
+  matchesPlayed: number;
+  homeVenue?: string;
 }
 
 export type ShotType = "DEFENSIVE" | "NORMAL" | "AGGRESSIVE";
@@ -47,7 +50,12 @@ export type BallType =
   | "OFF_CUTTER"
   | "BOUNCER"
   | "SLIDER"
-  | "YORKER";
+  | "YORKER"
+  | "OFF_SPIN"
+  | "LEG_SPIN"
+  | "ARM_BALL"
+  | "CARROM_BALL"
+  | "GOOGLY";
 export type BowlingSpeed = "SLOW" | "MEDIUM" | "FAST";
 
 export interface BallOutcome {
@@ -112,6 +120,16 @@ export interface MatchState {
   matchType: "league" | "qualifier1" | "eliminator" | "qualifier2" | "final";
   impactPlayerUsed1: boolean;
   impactPlayerUsed2: boolean;
+  matchId?: number; // links back to TournamentMatch.id
+  venue?: string;
+  // Super Over fields
+  isSuperOver?: boolean;
+  superOverPhase?: "so_innings1" | "so_innings2" | "so_result";
+  superOverInnings1?: InningsState;
+  superOverInnings2?: InningsState;
+  superOverTarget?: number;
+  superOverResult?: string;
+  superOverWinner?: number;
 }
 
 export interface AuctionBid {
@@ -139,6 +157,8 @@ export interface TournamentMatch {
   result?: string;
   score1?: string;
   score2?: string;
+  venue?: string;
+  matchDate?: string;
 }
 
 export interface PlayerTournamentStats {
@@ -156,6 +176,15 @@ export interface PlayerTournamentStats {
   strikeRate: number;
   economy: number;
   playerOfMatchCount: number;
+  centuries: number;
+  halfCenturies: number;
+}
+
+export interface RetentionEntry {
+  playerId: number;
+  teamId: number;
+  retentionCost: number; // Cr
+  isRTM: boolean;
 }
 
 export interface GameState {
@@ -167,7 +196,8 @@ export interface GameState {
     | "team"
     | "match"
     | "tournament"
-    | "leaderboard";
+    | "leaderboard"
+    | "retention";
   teams: TeamData[];
   auctionQueue: number[]; // player ids in order
   auctionIndex: number;
@@ -184,6 +214,7 @@ export interface GameState {
     | "complete";
   playerStats: PlayerTournamentStats[];
   retainedPlayers: number[]; // for season 2+
+  retentionEntries?: RetentionEntry[];
   rtmCards: { teamId: number; count: number }[];
   trophy?: number; // winning team id
 }

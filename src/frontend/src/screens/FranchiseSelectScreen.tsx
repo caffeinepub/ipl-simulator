@@ -16,6 +16,8 @@ const TEAM_DESCRIPTIONS: Record<number, string> = {
   5: "Lion-hearted fighters with a fearless top order",
   6: "Sun-scorched warriors with lethal fast bowlers",
   7: "Red-and-gold royalty -- high-scoring and fearless",
+  8: "Titans from Ahmedabad -- new force in the league",
+  9: "Lucknow Giants -- aggressive batting lineup",
 };
 
 export default function FranchiseSelectScreen({ onSelect }: Props) {
@@ -71,12 +73,12 @@ export default function FranchiseSelectScreen({ onSelect }: Props) {
             </span>
           </h1>
           <p className="text-sm" style={{ color: "#A7B3C2" }}>
-            Select the team you want to manage for this season
+            Select from all 10 IPL 2026 franchises
           </p>
         </motion.div>
 
         {/* Franchise Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-10">
           {INITIAL_TEAMS.map((team, i) => (
             <motion.button
               key={team.id}
@@ -115,8 +117,13 @@ export default function FranchiseSelectScreen({ onSelect }: Props) {
                 {team.name}
               </div>
               <div className="text-xs" style={{ color: "#A7B3C2" }}>
-                {TEAM_DESCRIPTIONS[team.id]}
+                {TEAM_DESCRIPTIONS[team.id] ?? "IPL franchise"}
               </div>
+              {team.homeVenue && (
+                <div className="text-xs mt-1" style={{ color: "#6B7A8F" }}>
+                  📍 {team.homeVenue.split(",")[0]}
+                </div>
+              )}
               {selected === team.id && (
                 <div
                   className="mt-2 text-xs font-bold"
@@ -142,6 +149,7 @@ export default function FranchiseSelectScreen({ onSelect }: Props) {
               onMouseEnter={() => setHoveredMode("auction")}
               onMouseLeave={() => setHoveredMode(null)}
               onClick={() => onSelect(selected, "auction")}
+              data-ocid="franchise.auction_mode.button"
               className="rounded-2xl p-6 text-left transition-all duration-200"
               style={{
                 background:
@@ -165,8 +173,9 @@ export default function FranchiseSelectScreen({ onSelect }: Props) {
                 LIVE AUCTION
               </h3>
               <p className="text-sm" style={{ color: "#A7B3C2" }}>
-                Bid against 7 AI teams in real-time. Win players within your 100
-                Cr budget, then play the tournament.
+                Bid against 9 AI teams in real-time. Win players within your 100
+                Cr budget across WK, Bat, Bowl, AR pools, then play the
+                tournament.
               </p>
               <div
                 className="mt-4 text-xs font-bold uppercase tracking-wider"
@@ -182,6 +191,7 @@ export default function FranchiseSelectScreen({ onSelect }: Props) {
               onMouseEnter={() => setHoveredMode("quickplay")}
               onMouseLeave={() => setHoveredMode(null)}
               onClick={() => onSelect(selected, "quickplay")}
+              data-ocid="franchise.quickplay_mode.button"
               className="rounded-2xl p-6 text-left transition-all duration-200"
               style={{
                 background:
@@ -205,8 +215,8 @@ export default function FranchiseSelectScreen({ onSelect }: Props) {
                 QUICK PLAY
               </h3>
               <p className="text-sm" style={{ color: "#A7B3C2" }}>
-                Auction is auto-simulated instantly. You get a full squad
-                assigned to your franchise -- jump straight into matches.
+                Auction auto-simulated instantly. Each team gets 15 players.
+                Skip straight to picking your Playing XI and playing matches.
               </p>
               <div
                 className="mt-4 text-xs font-bold uppercase tracking-wider"

@@ -1,0 +1,27 @@
+type Team = 
+ record {
+   budget: nat;
+   id: nat;
+   impactPlayerId: opt nat;
+   isAI: bool;
+   name: text;
+   playingXI: vec nat;
+   squad: vec nat;
+ };
+type AuctionState = 
+ record {
+   currentBid: nat;
+   currentBidderId: opt nat;
+   currentPlayerIndex: nat;
+   isActive: bool;
+ };
+service : {
+  getAuctionState: () -> (AuctionState) query;
+  getSquad: (teamId: nat) -> (vec nat) query;
+  getTeam: (teamId: nat) -> (Team) query;
+  passPlayer: () -> ();
+  placeBid: (teamId: nat, amount: nat) -> ();
+  setImpactPlayer: (teamId: nat, playerId: nat) -> ();
+  setPlayingXI: (teamId: nat, playerIds: vec nat) -> ();
+  startAuction: () -> ();
+}
