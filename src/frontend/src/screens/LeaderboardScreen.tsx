@@ -54,6 +54,19 @@ const ROLE_COLORS: Record<string, string> = {
   WicketKeeper: "#FF7A2F",
 };
 
+const MY_TEAM_CATEGORIES = [
+  { key: "runs", label: "Top Run Scorer", emoji: "🏏" },
+  { key: "wickets", label: "Top Wicket Taker", emoji: "🎯" },
+  { key: "sixes", label: "Top Six Hitter", emoji: "💥" },
+  { key: "fours", label: "Top Four Hitter", emoji: "🔥" },
+  { key: "strikeRate", label: "Best Strike Rate", emoji: "⚡" },
+  { key: "centuries", label: "Top Century Scorer", emoji: "💯" },
+  { key: "halfCenturies", label: "Top Fifty Scorer", emoji: "🌟" },
+  { key: "economy", label: "Best Economy", emoji: "🧊" },
+] as const;
+
+type MyTeamCategoryKey = (typeof MY_TEAM_CATEGORIES)[number]["key"];
+
 function getMockStats(gameState: GameState) {
   if (gameState.playerStats.length > 0) return gameState.playerStats;
 
@@ -107,29 +120,44 @@ function getMockStats(gameState: GameState) {
   return stats;
 }
 
-/** Returns the user team's best performer for a given stat category */
-function getMyTeamBest(
-  stats: PlayerTournamentStats[],
-  userSquad: number[],
-): {
+interface MyTeamStat {
   label: string;
   emoji: string;
   playerId: number | null;
+  playerName: string | null;
+  playerRole: string | null;
   value: string;
-}[] {
-  const myStats = stats.filter((s) => userSquad.includes(s.playerId));
+  hasData: boolean;
+}
 
-  const best = <K extends keyof PlayerTournamentStats>(
+/** Returns the user team's best performer for a given stat category */
+function getMyTeamBest(
+  stats: PlayerTournamentStats[],
+  userTeamId: number,
+  userSquad: number[],
+): MyTeamStat[] {
+  // Filter stats to only include players in the user's squad
+  // Cross-check by both squad membership AND teamId to ensure correctness
+  const myStats = stats.filter(
+    (s) => userSquad.includes(s.playerId) || s.teamId === userTeamId,
+  );
+
+  const best = (
     arr: PlayerTournamentStats[],
-    key: K,
+    key: MyTeamCategoryKey,
     ascending = false,
     minFilter?: (s: PlayerTournamentStats) => boolean,
-  ) => {
-    const filtered = minFilter ? arr.filter(minFilter) : arr;
+  ): PlayerTournamentStats | null => {
+    const filtered = minFilter
+      ? arr.filter(minFilter)
+      : arr.filter((s) => {
+          const val = s[key as keyof PlayerTournamentStats] as number;
+          return val > 0;
+        });
     if (!filtered.length) return null;
     return filtered.reduce((a, b) => {
-      const av = a[key] as number;
-      const bv = b[key] as number;
+      const av = a[key as keyof PlayerTournamentStats] as number;
+      const bv = b[key as keyof PlayerTournamentStats] as number;
       return ascending ? (av < bv ? a : b) : av > bv ? a : b;
     });
   };
@@ -138,73 +166,86 @@ function getMyTeamBest(
   const topWickets = best(myStats, "wickets");
   const topSixes = best(myStats, "sixes");
   const topFours = best(myStats, "fours");
-  const topSR = best(myStats, "strikeRate", false, (s) => s.balls >= 20);
+  const topSR = best(myStats, "strikeRate", false, (s) => s.balls >= 30);
   const topCenturies = best(myStats, "centuries");
   const topFifties = best(myStats, "halfCenturies");
-  const bestEco = best(myStats, "economy", true, (s) => s.oversBowled >= 1);
+  const bestEco = best(myStats, "economy", true, (s) => s.oversBowled >= 2);
 
-  const fmt = (
-    s: PlayerTournamentStats | null,
-    key: keyof PlayerTournamentStats,
-    decimals = 0,
-  ) => {
-    if (!s) return "–";
-    const v = s[key] as number;
-    return decimals > 0 ? v.toFixed(decimals) : String(v ?? 0);
+  const playerName = (s: PlayerTournamentStats | null): string | null => {
+    if (!s) return null;
+    const p = getPlayer(s.playerId);
+    return p?.name ?? null;
+  };
+  const playerRole = (s: PlayerTournamentStats | null): string | null => {
+    if (!s) return null;
+    const p = getPlayer(s.playerId);
+    return p?.role ?? null;
   };
 
+  const makeRow = (
+    label: string,
+    emoji: string,
+    s: PlayerTournamentStats | null,
+    displayValue: string,
+  ): MyTeamStat => ({
+    label,
+    emoji,
+    playerId: s?.playerId ?? null,
+    playerName: playerName(s),
+    playerRole: playerRole(s),
+    value: displayValue,
+    hasData: s !== null,
+  });
+
   return [
-    {
-      label: "Top Run Scorer",
-      emoji: "🏏",
-      playerId: topRuns?.playerId ?? null,
-      value: topRuns ? `${topRuns.runs} runs` : "–",
-    },
-    {
-      label: "Top Wicket Taker",
-      emoji: "🎯",
-      playerId: topWickets?.playerId ?? null,
-      value: topWickets ? `${topWickets.wickets} wkts` : "–",
-    },
-    {
-      label: "Top Six Hitter",
-      emoji: "💥",
-      playerId: topSixes?.playerId ?? null,
-      value: topSixes ? `${topSixes.sixes} sixes` : "–",
-    },
-    {
-      label: "Top Four Hitter",
-      emoji: "🔥",
-      playerId: topFours?.playerId ?? null,
-      value: topFours ? `${topFours.fours} fours` : "–",
-    },
-    {
-      label: "Best Strike Rate",
-      emoji: "⚡",
-      playerId: topSR?.playerId ?? null,
-      value:
-        fmt(topSR, "strikeRate", 1) !== "–"
-          ? `SR ${fmt(topSR, "strikeRate", 1)}`
-          : "–",
-    },
-    {
-      label: "Top Century Scorer",
-      emoji: "💯",
-      playerId: topCenturies?.playerId ?? null,
-      value: topCenturies ? `${topCenturies.centuries ?? 0} tons` : "–",
-    },
-    {
-      label: "Top Fifty Scorer",
-      emoji: "🌟",
-      playerId: topFifties?.playerId ?? null,
-      value: topFifties ? `${topFifties.halfCenturies ?? 0} fifties` : "–",
-    },
-    {
-      label: "Best Economy",
-      emoji: "🧊",
-      playerId: bestEco?.playerId ?? null,
-      value: bestEco ? `${bestEco.economy.toFixed(2)} eco` : "–",
-    },
+    makeRow(
+      "Top Run Scorer",
+      "🏏",
+      topRuns,
+      topRuns ? `${topRuns.runs} runs` : "No data yet",
+    ),
+    makeRow(
+      "Top Wicket Taker",
+      "🎯",
+      topWickets,
+      topWickets ? `${topWickets.wickets} wkts` : "No data yet",
+    ),
+    makeRow(
+      "Top Six Hitter",
+      "💥",
+      topSixes,
+      topSixes ? `${topSixes.sixes} sixes` : "No data yet",
+    ),
+    makeRow(
+      "Top Four Hitter",
+      "🔥",
+      topFours,
+      topFours ? `${topFours.fours} fours` : "No data yet",
+    ),
+    makeRow(
+      "Best Strike Rate",
+      "⚡",
+      topSR,
+      topSR ? `SR ${topSR.strikeRate.toFixed(1)}` : "No data yet",
+    ),
+    makeRow(
+      "Top Century Scorer",
+      "💯",
+      topCenturies,
+      topCenturies ? `${topCenturies.centuries ?? 0} tons` : "No data yet",
+    ),
+    makeRow(
+      "Top Fifty Scorer",
+      "🌟",
+      topFifties,
+      topFifties ? `${topFifties.halfCenturies ?? 0} fifties` : "No data yet",
+    ),
+    makeRow(
+      "Best Economy",
+      "🧊",
+      bestEco,
+      bestEco ? `${bestEco.economy.toFixed(2)} eco` : "No data yet",
+    ),
   ];
 }
 
@@ -291,18 +332,14 @@ export default function LeaderboardScreen({ gameState, onNavigate }: Props) {
     }
   };
 
-  const getUserTeamIds = () => {
-    const userTeam = gameState.teams.find((t) => t.isUserTeam);
-    return userTeam?.squad ?? [];
-  };
-
-  const userPlayerIds = getUserTeamIds();
   const userTeam = gameState.teams.find((t) => t.isUserTeam);
-  const myTeamRows = getMyTeamBest(stats, userPlayerIds);
+  const userPlayerIds = userTeam?.squad ?? [];
+  const userTeamId = userTeam?.id ?? -1;
+  const myTeamRows = getMyTeamBest(stats, userTeamId, userPlayerIds);
 
   return (
     <div className="min-h-screen p-4 md:p-6" style={{ background: "#070B14" }}>
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <h1
             className="text-2xl font-black uppercase"
@@ -516,127 +553,197 @@ export default function LeaderboardScreen({ gameState, onNavigate }: Props) {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-2xl p-5 sticky top-4"
+              className="rounded-2xl overflow-hidden sticky top-4"
               style={{
-                background:
-                  "linear-gradient(135deg, rgba(53,224,111,0.04), rgba(34,184,199,0.04))",
-                border: "1px solid rgba(53,224,111,0.2)",
+                background: "rgba(7, 11, 20, 0.95)",
+                border: "1px solid rgba(53,224,111,0.3)",
+                boxShadow: "0 0 24px rgba(53,224,111,0.08)",
               }}
               data-ocid="leaderboard.my_team.panel"
             >
-              {/* Header */}
-              <div className="flex items-center gap-2 mb-4">
+              {/* Panel header */}
+              <div
+                className="px-4 py-3 flex items-center gap-3"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(53,224,111,0.15), rgba(34,184,199,0.10))",
+                  borderBottom: "1px solid rgba(53,224,111,0.2)",
+                }}
+              >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0"
                   style={{
                     background: userTeam?.primaryColor ?? "#35E06F",
                     color: "#fff",
+                    fontSize: "9px",
+                    letterSpacing: "0.05em",
                   }}
                 >
                   {userTeam?.shortName ?? "MY"}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div
                     className="text-xs font-black uppercase tracking-widest"
                     style={{ color: "#35E06F" }}
                   >
-                    My Team
+                    My Team Progress
                   </div>
-                  <div className="text-xs" style={{ color: "#A7B3C2" }}>
-                    {userTeam?.name ?? "Your Team"}
+                  <div
+                    className="text-xs truncate"
+                    style={{ color: "#A7B3C2" }}
+                  >
+                    {userTeam?.name ?? "Your Team"} • Season {gameState.season}
                   </div>
                 </div>
               </div>
 
               {/* Stats rows */}
-              <div className="space-y-2.5">
-                {myTeamRows.map((row, i) => {
-                  const player =
-                    row.playerId !== null ? getPlayer(row.playerId) : null;
-                  return (
-                    <motion.div
-                      key={row.label}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.15 + i * 0.06 }}
-                      className="rounded-xl p-3"
-                      style={{
-                        background: "rgba(15,34,51,0.7)",
-                        border: "1px solid rgba(30,58,74,0.5)",
-                      }}
-                      data-ocid={`leaderboard.my_team.stat.${i + 1}`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs" style={{ color: "#A7B3C2" }}>
-                          {row.emoji} {row.label}
-                        </span>
-                        <span
-                          className="text-xs font-black"
-                          style={{ color: "#FF9A3D" }}
-                        >
-                          {row.value}
-                        </span>
-                      </div>
-                      {player ? (
+              <div className="p-3 space-y-2">
+                {myTeamRows.map((row, i) => (
+                  <motion.div
+                    key={row.label}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 + i * 0.055 }}
+                    className="rounded-xl p-2.5"
+                    style={{
+                      background: row.hasData
+                        ? "rgba(15,34,51,0.8)"
+                        : "rgba(10,20,34,0.6)",
+                      border: row.hasData
+                        ? "1px solid rgba(30,58,74,0.6)"
+                        : "1px solid rgba(20,40,60,0.4)",
+                    }}
+                    data-ocid={`leaderboard.my_team.stat.${i + 1}`}
+                  >
+                    {/* Category label row */}
+                    <div className="flex items-center justify-between mb-1">
+                      <span
+                        className="text-xs font-medium flex items-center gap-1"
+                        style={{ color: "#7A8FA8" }}
+                      >
+                        <span>{row.emoji}</span>
+                        <span>{row.label}</span>
+                      </span>
+                      <span
+                        className="text-xs font-black px-2 py-0.5 rounded-full"
+                        style={{
+                          background: row.hasData
+                            ? "rgba(255,154,61,0.15)"
+                            : "rgba(30,50,70,0.4)",
+                          color: row.hasData ? "#FF9A3D" : "#4A5568",
+                        }}
+                      >
+                        {row.value}
+                      </span>
+                    </div>
+                    {/* Player name row */}
+                    {row.hasData && row.playerName ? (
+                      <div className="flex items-center gap-1.5 mt-1">
                         <div
-                          className="text-sm font-semibold truncate"
-                          style={{ color: "#E9EEF5" }}
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                          style={{
+                            background: "rgba(53,224,111,0.15)",
+                            color: "#35E06F",
+                            fontSize: "8px",
+                          }}
                         >
-                          {player.name}
-                          <span
-                            className="text-xs ml-1.5"
-                            style={{ color: "#6B7A8F" }}
+                          {row.playerName
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </div>
+                        <div className="min-w-0">
+                          <div
+                            className="text-xs font-semibold truncate"
+                            style={{ color: "#E9EEF5" }}
                           >
-                            {player.role}
-                          </span>
+                            {row.playerName}
+                          </div>
+                          {row.playerRole && (
+                            <div
+                              className="text-xs leading-none"
+                              style={{ color: "#4A5568", fontSize: "10px" }}
+                            >
+                              {row.playerRole}
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="text-xs" style={{ color: "#4A5568" }}>
-                          No data yet
-                        </div>
-                      )}
-                    </motion.div>
-                  );
-                })}
+                      </div>
+                    ) : (
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: "#3A4A5A" }}
+                      >
+                        No qualifying data yet
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
               </div>
 
-              {/* Team record */}
+              {/* Team record footer */}
               {userTeam && (
                 <div
-                  className="mt-4 pt-4 grid grid-cols-3 gap-2 text-center"
+                  className="px-4 py-3 grid grid-cols-4 gap-1 text-center"
                   style={{ borderTop: "1px solid rgba(53,224,111,0.15)" }}
                 >
                   <div>
                     <div
-                      className="text-lg font-black"
+                      className="text-base font-black"
                       style={{ color: "#35E06F" }}
                     >
                       {userTeam.wins}
                     </div>
-                    <div className="text-xs" style={{ color: "#A7B3C2" }}>
+                    <div
+                      className="text-xs"
+                      style={{ color: "#A7B3C2", fontSize: "9px" }}
+                    >
                       Wins
                     </div>
                   </div>
                   <div>
                     <div
-                      className="text-lg font-black"
+                      className="text-base font-black"
                       style={{ color: "#E53935" }}
                     >
                       {userTeam.losses}
                     </div>
-                    <div className="text-xs" style={{ color: "#A7B3C2" }}>
+                    <div
+                      className="text-xs"
+                      style={{ color: "#A7B3C2", fontSize: "9px" }}
+                    >
                       Losses
                     </div>
                   </div>
                   <div>
                     <div
-                      className="text-lg font-black"
+                      className="text-base font-black"
                       style={{ color: "#FF9A3D" }}
                     >
                       {userTeam.points}
                     </div>
-                    <div className="text-xs" style={{ color: "#A7B3C2" }}>
+                    <div
+                      className="text-xs"
+                      style={{ color: "#A7B3C2", fontSize: "9px" }}
+                    >
                       Points
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      className="text-base font-black"
+                      style={{ color: "#22B8C7" }}
+                    >
+                      {userTeam.nrr >= 0 ? "+" : ""}
+                      {(userTeam.nrr ?? 0).toFixed(2)}
+                    </div>
+                    <div
+                      className="text-xs"
+                      style={{ color: "#A7B3C2", fontSize: "9px" }}
+                    >
+                      NRR
                     </div>
                   </div>
                 </div>
@@ -665,12 +772,16 @@ export default function LeaderboardScreen({ gameState, onNavigate }: Props) {
                   <th className="text-center pb-2">P</th>
                   <th className="text-center pb-2">W</th>
                   <th className="text-center pb-2">L</th>
+                  <th className="text-center pb-2">NRR</th>
                   <th className="text-right pb-2">Pts</th>
                 </tr>
               </thead>
               <tbody>
                 {[...gameState.teams]
-                  .sort((a, b) => b.points - a.points)
+                  .sort(
+                    (a, b) =>
+                      b.points - a.points || (b.nrr ?? 0) - (a.nrr ?? 0),
+                  )
                   .map((team, i) => (
                     <tr
                       key={team.id}
@@ -709,6 +820,15 @@ export default function LeaderboardScreen({ gameState, onNavigate }: Props) {
                         style={{ color: "#E53935" }}
                       >
                         {team.losses}
+                      </td>
+                      <td
+                        className="py-2 text-center font-mono text-xs"
+                        style={{
+                          color: (team.nrr ?? 0) >= 0 ? "#35E06F" : "#E53935",
+                        }}
+                      >
+                        {(team.nrr ?? 0) >= 0 ? "+" : ""}
+                        {(team.nrr ?? 0).toFixed(3)}
                       </td>
                       <td
                         className="py-2 text-right font-bold"
