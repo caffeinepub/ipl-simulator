@@ -1235,15 +1235,25 @@ export default function MatchScreen({
       const m = prev.currentMatch as ExtendedMatch;
       if (!m) return prev;
 
+      const overs1 = m.innings1.balls / 6;
+      const overs2 = m.innings2.balls / 6;
+      const nrr1Delta =
+        overs1 > 0 && overs2 > 0
+          ? m.innings1.totalRuns / overs1 - m.innings2.totalRuns / overs2
+          : 0;
+      const nrr2Delta = -nrr1Delta;
+
       const updatedTeams = prev.teams.map((t) => {
         if (t.id === m.team1Id || t.id === m.team2Id) {
           const isWinner = t.id === (m.superOverWinner ?? m.winner);
+          const nrrDelta = t.id === m.team1Id ? nrr1Delta : nrr2Delta;
           return {
             ...t,
             wins: isWinner ? t.wins + 1 : t.wins,
             losses: isWinner ? t.losses : t.losses + 1,
             points: isWinner ? t.points + 2 : t.points,
             matchesPlayed: t.matchesPlayed + 1,
+            nrr: (t.nrr ?? 0) + nrrDelta,
           };
         }
         return t;
